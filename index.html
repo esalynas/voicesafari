@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulación - Voz Nativa Safari</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI,sans-serif}
+body{height:100vh;display:flex;justify-content:center;align-items:center;background:#081018;color:#fff}
+.chat{width:420px;height:700px;background:#111827;border-radius:25px;display:flex;flex-direction:column;overflow:hidden;border:1px solid #2d3748}
+.header{padding:18px;background:#1e293b;color:#8bd3ff;font-weight:bold}
+.messages{flex:1;padding:18px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.bot,.user{padding:12px 16px;border-radius:18px;max-width:80%;line-height:1.5}
+.bot{background:#1f2937;align-self:flex-start}
+.user{background:#157347;align-self:flex-end}
+.footer{padding:18px;text-align:center;border-top:1px solid #243244}
+button{width:75px;height:75px;border:none;border-radius:50%;font-size:34px;cursor:pointer;background:#2196f3;color:#fff}
+#estado{margin-top:10px;color:#8bd3ff}
+</style>
+</head>
+<body>
+
+<div class="chat">
+  <div class="header">🤖 Agente IA - Control de Legalidad (Voz Nativa)</div>
+  <div class="messages" id="chat">
+    <div class="bot">Hola. Oprime el micrófono y habla de inmediato.</div>
+  </div>
+  <div class="footer">
+    <button id="mic">🎤</button>
+    <div id="estado">Pulsa para hablar</div>
+  </div>
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+const estado = document.getElementById("estado");
+const mic = document.getElementById("mic");
+
+let voz; 
+let recActual = null; // Guardará la instancia viva del micrófono
+
+// 1. Obtener la API correcta según el navegador
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function hablarTexto(textoAPronunciar) {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+    const textoLimpio = textoAPronunciar.replace(/<[^>]*>/g, "");
+    voz = new SpeechSynthesisUtterance(textoLimpio);
+    voz.lang = "es-CO";
+    window.speechSynthesis.speak(voz);
+  }
+}
+
+// 2. Evento del Click: Aquí ocurre la magia para Safari
+mic.onclick = () => {
+  // Cancelar lecturas previas y forzar desbloqueo de audio en iOS
+  hablarTexto(""); 
+
+  // Si ya hay un micrófono activo, lo detenemos limpiamente
+  if (recActual) {
+    recActual.stop();
+    return;
+  }
+
+  if (!SpeechRecognition) {
+    estado.innerHTML = "❌ Navegador no compatible.";
+    return;
+  }
+
+  // CRÍTICO PARA SAFARI: Creamos la instancia NUEVA obligatoriamente DENTRO del click
+  const rec = new SpeechRecognition();
+  rec.lang = "es-CO";
+  rec.continuous = false;
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+
+  rec.onstart = () => {
+    recActual = rec; // Guardamos la referencia
+    estado.innerHTML = "🎙️ Escuchando... Habla ahora";
+  };
+
+  rec.onresult = (e) => {
+    const texto = e.results[0][0].transcript;
+    chat.innerHTML += `<div class="user">${texto}</div>`;
+    
+    // Tu lógica de negocio / respuestas
+    let respuesta = "Trámite recibido en análisis.";
+    if (texto.toLowerCase().includes("constitución") || texto.toLowerCase().includes("constitucion")) {
+      respuesta = "✅ Iniciando control para Constitución.";
+    }
+
+    chat.innerHTML += `<div class="bot">${respuesta}</div>`;
+    chat.scrollTop = chat.scrollHeight;
+    hablarTexto(respuesta);
+  };
+
+  rec.onerror = (e) => {
+    console.log("Error de Safari:", e.error);
+    estado.innerHTML = "❌ Reintentando... vuelve a pulsar.";
+  };
+
+  rec.onend = () => {
+    recActual = null; // Matamos la instancia para que el próximo click cree una limpia
+    if (estado.innerHTML.includes("Escuchando")) {
+      estado.innerHTML = "Pulsa para hablar";
+    }
+  };
+
+  // Arrancamos de inmediato en el mismo hilo del click
+  try {
+    rec.start();
+  } catch (err) {
+    console.log(err);
+  }
+};
+</script>
+</body>
+</html>
